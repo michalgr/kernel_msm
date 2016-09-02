@@ -248,6 +248,10 @@ static inline void bpf_prog_put(struct bpf_prog *prog)
 static inline void bpf_prog_put_rcu(struct bpf_prog *prog)
 {
 }
+static inline struct bpf_prog *bpf_prog_inc(struct bpf_prog *prog)
+{
+	return ERR_PTR(-EOPNOTSUPP);
+}
 #endif /* CONFIG_BPF_SYSCALL */
 
 /* verifier prototypes for helper functions called from eBPF programs */
