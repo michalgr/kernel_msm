@@ -13,6 +13,7 @@
 #include <linux/rcupdate.h>
 #include <linux/random.h>
 #include <linux/smp.h>
+#include <linux/topology.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/uidgid.h>
@@ -106,6 +107,17 @@ static u64 bpf_get_smp_processor_id(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
 
 const struct bpf_func_proto bpf_get_smp_processor_id_proto = {
 	.func		= bpf_get_smp_processor_id,
+	.gpl_only	= false,
+	.ret_type	= RET_INTEGER,
+};
+
+static u64 bpf_get_numa_node_id(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
+{
+	return numa_node_id();
+}
+
+const struct bpf_func_proto bpf_get_numa_node_id_proto = {
+	.func		= bpf_get_numa_node_id,
 	.gpl_only	= false,
 	.ret_type	= RET_INTEGER,
 };
