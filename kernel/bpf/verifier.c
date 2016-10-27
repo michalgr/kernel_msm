@@ -17,6 +17,7 @@
 #include <net/netlink.h>
 #include <linux/file.h>
 #include <linux/vmalloc.h>
+#include <linux/stringify.h>
 
 /* bpf_check() is a static code analyzer that walks eBPF program
  * instruction by instruction and updates register/stack state.
@@ -255,6 +256,22 @@ static const char * const reg_type_str[] = {
 	[CONST_IMM]		= "imm",
 };
 
+#define __BPF_FUNC_STR_FN(x) [BPF_FUNC_ ## x] = __stringify(bpf_ ## x)
+static const char * const func_id_str[] = {
+	__BPF_FUNC_MAPPER(__BPF_FUNC_STR_FN)
+};
+#undef __BPF_FUNC_STR_FN
+
+static const char *func_id_name(int id)
+{
+	BUILD_BUG_ON(ARRAY_SIZE(func_id_str) != __BPF_FUNC_MAX_ID);
+
+	if (id >= 0 && id < __BPF_FUNC_MAX_ID && func_id_str[id])
+		return func_id_str[id];
+	else
+		return "unknown";
+}
+
 static void print_verifier_state(struct verifier_env *env)
 {
 	enum bpf_reg_type t;
@@ -415,7 +432,8 @@ static void print_bpf_insn(const struct verifier_env *env,
 		u8 opcode = BPF_OP(insn->code);
 
 		if (opcode == BPF_CALL) {
-			verbose("(%02x) call %d\n", insn->code, insn->imm);
+			verbose("(%02x) call %s#%d\n", insn->code,
+				func_id_name(insn->imm), insn->imm);
 		} else if (insn->code == (BPF_JMP | BPF_JA)) {
 			verbose("(%02x) goto pc%+d\n",
 				insn->code, insn->off);
@@ -1009,8 +1027,8 @@ static int check_map_func_compatibility(struct bpf_map *map, int func_id)
 
 	return 0;
 error:
-	verbose("cannot pass map_type %d into func %d\n",
-		map->map_type, func_id);
+	verbose("cannot pass map_type %d into func %s#%d\n",
+		map->map_type, func_id_name(func_id), func_id);
 	return -EINVAL;
 }
 
@@ -1043,7 +1061,7 @@ static int check_call(struct verifier_env *env, int func_id, int insn_idx)
 
 	/* find function prototype */
 	if (func_id < 0 || func_id >= __BPF_FUNC_MAX_ID) {
-		verbose("invalid func %d\n", func_id);
+		verbose("invalid func %s#%d\n", func_id_name(func_id), func_id);
 		return -EINVAL;
 	}
 
@@ -1051,7 +1069,7 @@ static int check_call(struct verifier_env *env, int func_id, int insn_idx)
 		fn = env->prog->aux->ops->get_func_proto(func_id);
 
 	if (!fn) {
-		verbose("unknown func %d\n", func_id);
+		verbose("unknown func %s#%d\n", func_id_name(func_id), func_id);
 		return -EINVAL;
 	}
 
@@ -1068,7 +1086,8 @@ static int check_call(struct verifier_env *env, int func_id, int insn_idx)
 	 */
 	err = check_raw_mode(fn);
 	if (err) {
-		verbose("kernel subsystem misconfigured func %d\n", func_id);
+		verbose("kernel subsystem misconfigured func %s#%d\n",
+			func_id_name(func_id), func_id);
 		return err;
 	}
 
@@ -1129,8 +1148,8 @@ static int check_call(struct verifier_env *env, int func_id, int insn_idx)
 		}
 		regs[BPF_REG_0].map_ptr = meta.map_ptr;
 	} else {
-		verbose("unknown return type %d of func %d\n",
-			fn->ret_type, func_id);
+		verbose("unknown return type %d of func %s#%d\n",
+			fn->ret_type, func_id_name(func_id), func_id);
 		return -EINVAL;
 	}
 
