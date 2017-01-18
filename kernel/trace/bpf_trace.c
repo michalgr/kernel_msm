@@ -322,6 +322,37 @@ static const struct bpf_func_proto bpf_get_current_task_proto = {
 	.ret_type	= RET_INTEGER,
 };
 
+static u64 bpf_probe_read_str(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
+{
+	void *dst = (void *) (long) r1;
+	int ret, size = (int) r2;
+	void *unsafe_ptr = (void *) (long) r3;
+
+	/*
+	 * The strncpy_from_unsafe() call will likely not fill the entire
+	 * buffer, but that's okay in this circumstance as we're probing
+	 * arbitrary memory anyway similar to bpf_probe_read() and might
+	 * as well probe the stack. Thus, memory is explicitly cleared
+	 * only in error case, so that improper users ignoring return
+	 * code altogether don't copy garbage; otherwise length of string
+	 * is returned that can be used for bpf_perf_event_output() et al.
+	 */
+	ret = strncpy_from_unsafe(dst, unsafe_ptr, size);
+	if (unlikely(ret < 0))
+		memset(dst, 0, size);
+
+	return ret;
+}
+
+static const struct bpf_func_proto bpf_probe_read_str_proto = {
+	.func		= bpf_probe_read_str,
+	.gpl_only	= true,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_RAW_STACK,
+	.arg2_type	= ARG_CONST_STACK_SIZE,
+	.arg3_type	= ARG_ANYTHING,
+};
+
 static const struct bpf_func_proto *tracing_func_proto(enum bpf_func_id func_id)
 {
 	switch (func_id) {
@@ -357,6 +388,8 @@ static const struct bpf_func_proto *tracing_func_proto(enum bpf_func_id func_id)
 		return bpf_get_probe_write_proto();
 	case BPF_FUNC_get_prandom_u32:
 		return &bpf_get_prandom_u32_proto;
+	case BPF_FUNC_probe_read_str:
+		return &bpf_probe_read_str_proto;
 	default:
 		return NULL;
 	}
