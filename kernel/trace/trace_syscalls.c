@@ -526,7 +526,23 @@ struct trace_event_class __refdata event_class_syscall_exit = {
 
 unsigned long __init __weak arch_syscall_addr(int nr)
 {
-	return (unsigned long)sys_call_table[nr];
+	const void* trampoline;
+	int ins;
+	int offset;
+
+	trampoline = sys_call_table[nr];
+	ins = *(const int*)trampoline;
+	offset = 0;
+
+	if ((ins >> 26) == 5) {
+		offset = ins & ~(-1 << 26);
+		offset *= 4;
+	}
+	if (offset >= (1 << 27)) {
+		offset = offset | (-1 << 28);
+	}
+
+	return (unsigned long)(trampoline + offset);
 }
 
 void __init init_ftrace_syscalls(void)
